@@ -2,9 +2,11 @@
 
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "Bokss.h"
 #include "Shader.h"
@@ -23,15 +25,16 @@
 // 1, 3, 2, //
 // };
 
-void doSomeSceneStuff(Scene scene);
+void doSomeSceneStuff(Scene *scene);
 void init(GLFWwindow **window);
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void doRendering();
+uint32_t getSceneVAO(Scene scene);
 
 // uint32_t VBO;
-// uint32_t VAO;
-// uint32_t EBO;
+uint32_t VAO;
+uint32_t EBO_length;
 uint32_t vertexShader;
 uint32_t fragmentShader;
 uint32_t shaderProgram;
@@ -47,37 +50,12 @@ int main() {
   GLFWwindow *window = NULL;
   init(&window);
 
-  glGenBuffers(1, &VBO);
-  glGenBuffers(1, &EBO);
-  glGenVertexArrays(1, &VAO);
-
   shader = newShader("shaders/shader.vert", "shaders/shader.frag");
 
-  shaderProgram = glCreateProgram();
-  glAttachShader(shaderProgram, vertexShader);
-  glAttachShader(shaderProgram, fragmentShader);
-  glLinkProgram(shaderProgram);
+  scene.objects = malloc(sizeof(Object) * 10);
+  doSomeSceneStuff(&scene);
 
-  doSomeSceneStuff(scene);
-
-  //    setting up the VAO
-
-  // bind the VAO
-  glBindVertexArray(VAO);
-  // copy the verticies into buffer
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(verticies), verticies, GL_STATIC_DRAW);
-  // copy the indecies into other buffer
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indecies), indecies,
-               GL_STATIC_DRAW);
-  // tell glsl what our data looks like
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
-  glEnableVertexAttribArray(0);
-
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
+  VAO = getSceneVAO(scene);
 
   while (!glfwWindowShouldClose(window)) {
     processInput(window);
@@ -100,23 +78,33 @@ int main() {
 //
 //
 
+void printObject(Object object, const char *name) {
+  printf("the object %s has the following values:\n", name);
+  printf("\t- angular velocity: %f\n", object.angularVelocity);
+  printf("\t- speed: %f\n", object.speed);
+  printf("\t- weight: %f\n", object.weight);
+  printf("\t- mesh: we currently don't have the buget for such things\n");
+}
+
+//
+
 // set up the scene :3
 
-void doSomeSceneStuff(Scene scene) {
-  Polygon squareMesh = newPolygon(4);
-  squareMesh.verticies[0] = newVertex(0.5, 0.5, /**/ 1.0, 0.0, 0.0);  // top
-                                                                      // right
-  squareMesh.verticies[1] = newVertex(-0.5, 0.5, /**/ 1.0, 0.0, 0.0); // top
-                                                                      // left
-  squareMesh.verticies[2] =
-      newVertex(-0.5, -0.5, /**/ 1.0, 0.0, 0.0); // bottom left
-  squareMesh.verticies[3] =
-      newVertex(0.5, -0.5, /**/ 1.0, 0.0, 0.0); // bottom right
-  Material squareMaterial = newMaterial(0.5, 0.2, 0.2);
-  Object square = newObject(squareMesh, 1.0, squareMaterial);
+void doSomeSceneStuff(Scene *scene) {
+  Polygon mesh = newPolygon(7);
+  mesh.verticies[0] = newVertex(0.843, 0.492, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[1] = newVertex(0.587, 0.79, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[2] = newVertex(0.024, 0.855, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[3] = newVertex(-0.485, 0.77, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[4] = newVertex(-0.407, 0.236, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[5] = newVertex(-0.59, -0.24, /**/ 1.0, 0.0, 0.0);
+  mesh.verticies[6] = newVertex(0.514, -0.384, /**/ 1.0, 0.0, 0.0);
 
-  scene.objects[scene.objectCount] = square;
-  scene.objectCount++;
+  Material squareMaterial = newMaterial(0.5, 0.2, 0.2);
+  Object square = newObject(mesh, 1.0, squareMaterial);
+
+  scene->objects[scene->objectCount] = square;
+  scene->objectCount++;
 }
 
 uint32_t getSceneVAO(Scene scene) {
@@ -125,7 +113,62 @@ uint32_t getSceneVAO(Scene scene) {
   uint32_t vao;
   glGenBuffers(1, &vbo);
   glGenBuffers(1, &ebo);
-  glGenVertexArrays(1 & vao);
+  glGenVertexArrays(1, &vao);
+
+  // check how many verticies
+  size_t vertAmmount = 0;
+  for (size_t i = 0; i < scene.objectCount; i++) {
+    vertAmmount += scene.objects[i].mesh.vertexCount;
+  }
+
+  // allocate space for all the verticies, and then fill them.
+  Vertex *verticies = malloc(sizeof(Vertex) * vertAmmount);
+  size_t verticies_used = 0;
+  for (size_t i = 0; i < scene.objectCount; i++) {
+    for (size_t vert = 0; vert < scene.objects[i].mesh.vertexCount; vert++) {
+      Vertex vertex = scene.objects[i].mesh.verticies[vert];
+      verticies[verticies_used++] = vertex;
+    }
+  }
+
+  // allocate space for all of the thingies in ebo.
+  uint32_t *elements =
+      malloc((vertAmmount - (scene.objectCount * 2)) * 3 * sizeof(uint32_t));
+  size_t elements_used = 0;
+
+  // fill the ebo.
+  for (size_t i = 0; i < scene.objectCount; i++) {
+    uint32_t *objectElements = triangulateMesh(scene.objects[i].mesh);
+    size_t elementsCreated = (scene.objects[i].mesh.vertexCount - 2) * 3;
+    memcpy(elements + elements_used, objectElements,
+           elementsCreated * sizeof(uint32_t));
+    elements_used += elementsCreated;
+    free(objectElements);
+  }
+
+  // do the actual vao stuff finally.
+
+  glBindVertexArray(vao);
+
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, verticies_used * sizeof(Vertex), verticies,
+               GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, elements_used * sizeof(uint32_t),
+               elements, GL_STATIC_DRAW);
+
+  // tell opengl my layout
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(0);
+
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                        (void *)(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+
+  glBindVertexArray(0);
+  EBO_length = elements_used;
+  return vao;
 }
 
 //
@@ -148,6 +191,10 @@ void processInput(GLFWwindow *window) {
 }
 
 void doRendering() {
+  // get a vao.
+
+  // printObject(scene.objects[0], "square");
+
   // set wireframe mode lol
   if (wireframe)
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -158,7 +205,7 @@ void doRendering() {
   // bind the VAO
   glBindVertexArray(VAO);
   // draw the trig :3
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, (GLsizei)EBO_length, GL_UNSIGNED_INT, 0);
   // idk why dis here :(
   // i think it's here so we can go to draw another object later... ¯\_(ツ)_/¯
   glBindVertexArray(0);

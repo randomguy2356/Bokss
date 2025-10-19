@@ -1,11 +1,11 @@
 PROJECT := Bokss
 CC      ?= gcc
 
-SRC := src/main.c src/glad.c src/Shader.c
+SRC := src/main.c src/glad.c src/Shader.c src/Bokss.c
 OBJ := $(SRC:src/%.c=build/%.o)
 
-CFLAGS ?= -O3 -g -Iinclude -Wall -Wextra -std=c23
-LDLIBS  = -lGL -lglfw
+CFLAGS ?= -O0 -g -Iinclude -Wall -Wextra -std=c23
+LDLIBS  = -lGL -lglfw -lm
 
 .PHONY: all clean run
 

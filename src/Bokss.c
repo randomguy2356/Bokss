@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,25 +8,25 @@
 #include "Bokss.h"
 
 Vec2 newVec2(float x, float y) {
-  Vec2 result = {
+  Vec2 result = {{
       x,
       y,
-  };
+  }};
   return result;
 }
 
 Vec3 newVec3(float x, float y, float z) {
-  Vec3 result = {
+  Vec3 result = {{
       x,
       y,
       z,
-  };
+  }};
   return result;
 }
 
 Vertex newVertex(float x, float y, float r, float g, float b) {
   Vertex result = {
-      newVec2(x, y),
+      newVec3(x, y, 0.0),
       newVec3(r, g, b),
   };
   return result;
@@ -60,20 +61,20 @@ Object newObject(Polygon mesh, double weight, Material material) {
 Line newLine(double angle, double offset) {
   angle = ((angle / 180) * PI);
   Line result;
-  Vec2 normal = {
+  Vec2 normal = {{
       cos(angle),
       sin(angle),
-  };
+  }};
   result.normal = normal;
   result.offset = offset;
   return result;
 }
 
-bool inPolygon(Vec2 pos, Polygon polygon) {
+bool inPolygon(Vec3 pos, Polygon polygon) {
   int intersections = 0;
-  for (int edgeID = 0; edgeID < polygon.vertexCount; edgeID++) {
-    Vec2 vert1 = polygon.verticies[edgeID].coords;
-    Vec2 vert2 = polygon.verticies[(edgeID + 1) % polygon.vertexCount].coords;
+  for (size_t edgeID = 0; edgeID < polygon.vertexCount; edgeID++) {
+    Vec3 vert1 = polygon.verticies[edgeID].coords;
+    Vec3 vert2 = polygon.verticies[(edgeID + 1) % polygon.vertexCount].coords;
     if (vert1.x == vert2.x) {
       continue;
     }
@@ -142,7 +143,7 @@ void update(Scene scene) {
 
 bool isCCW(Polygon polygon) {
   double area = 0;
-  for (int i = 0; i < polygon.vertexCount; i++) {
+  for (size_t i = 0; i < polygon.vertexCount; i++) {
     float x1 = polygon.verticies[i].coords.x;
     float y1 = polygon.verticies[i].coords.y;
     float x2 = polygon.verticies[(i + 1) % polygon.vertexCount].coords.x;
@@ -152,12 +153,12 @@ bool isCCW(Polygon polygon) {
   return area > 0;
 }
 
-static inline double crossProduct(Vec2 point1, Vec2 point2, Vec2 testPoint) {
+static inline double crossProduct(Vec3 point1, Vec3 point2, Vec3 testPoint) {
   return ((point2.x - point1.x) * (testPoint.y - point1.y)) -
          ((point2.y - point1.y) * (testPoint.x - point1.x));
 }
 
-bool isInTrig(Vec2 point, Vec2 a, Vec2 b, Vec2 c) {
+bool isInTrig(Vec3 point, Vec3 a, Vec3 b, Vec3 c) {
   double eps = 1e-12;
   double c1 = crossProduct(a, b, point);
   double c2 = crossProduct(b, c, point);
@@ -168,52 +169,73 @@ bool isInTrig(Vec2 point, Vec2 a, Vec2 b, Vec2 c) {
   return !(has_neg && has_pos);
 }
 
-size_t *triangulateMesh(Polygon mesh) {
-  size_t *result = malloc(((mesh.vertexCount - 2) * 3) * sizeof(size_t));
-  if (!result) {
-    return NULL;
+static inline Vertex vertAtID(Polygon mesh, uint32_t ID, uint32_t *IDList) {
+  return mesh.verticies[IDList[ID]];
+}
+
+uint32_t *triangulateMesh(Polygon mesh) {
+  uint32_t *indecies = malloc(mesh.vertexCount * (sizeof(uint32_t)));
+  uint32_t indecies_used = 0;
+  uint32_t *EBO = malloc(((mesh.vertexCount) - 2) * 3 * (sizeof(uint32_t)));
+  uint32_t EBO_used = 0;
+  // fill indecies
+  for (uint32_t i = 0; i < mesh.vertexCount; i++) {
+    indecies[indecies_used++] = i;
   }
-  size_t resultUsed = 0;
-  while (mesh.vertexCount > 3) {
-    for (int verID = 0; verID < mesh.vertexCount; verID++) {
-      Polygon tmpPoly = newPolygon(3);
-      if (!tmpPoly.verticies) {
-        return NULL;
-      }
-      tmpPoly.verticies[0] = mesh.verticies[verID];
-      tmpPoly.verticies[1] = mesh.verticies[(verID + 1) % mesh.vertexCount];
-      tmpPoly.verticies[2] = mesh.verticies[(verID + 2) % mesh.vertexCount];
-      if (!isCCW(tmpPoly)) {
+
+  // repeat untill only one trig left
+  while (indecies_used > 3) {
+    // iterate through indecies
+    for (uint32_t vertID = 0; vertID < indecies_used; vertID++) {
+      uint32_t vert1 = vertID;
+      uint32_t vert2 = (vertID + 1) % indecies_used;
+      uint32_t vert3 = (vertID + 2) % indecies_used;
+      // check if its counter clockwise
+      Polygon tmpMesh = newPolygon(3);
+      tmpMesh.verticies[0] = vertAtID(mesh, vert1, indecies);
+      tmpMesh.verticies[1] = vertAtID(mesh, vert2, indecies);
+      tmpMesh.verticies[2] = vertAtID(mesh, vert3, indecies);
+      if (!isCCW(tmpMesh)) {
+        free(tmpMesh.verticies);
         continue;
       }
-      bool ear = true;
-      for (int testVer = 0; testVer < mesh.vertexCount; testVer++) {
-        if (testVer == verID || testVer == (verID + 1) % mesh.vertexCount ||
-            testVer == (verID + 2) % mesh.vertexCount) {
+      free(tmpMesh.verticies);
+
+      // check if no vertex is inside it
+      bool isEar = true;
+      for (uint32_t testVert = 0; testVert < indecies_used; testVert++) {
+        if (testVert == vert1 || testVert == vert2 || testVert == vert3) {
           continue;
         }
-        if (isInTrig(mesh.verticies[testVer].coords,
-                     tmpPoly.verticies[0].coords, tmpPoly.verticies[1].coords,
-                     tmpPoly.verticies[2].coords)) {
-          ear = false;
+        if (isInTrig(vertAtID(mesh, testVert, indecies).coords,
+                     vertAtID(mesh, vert1, indecies).coords,
+                     vertAtID(mesh, vert2, indecies).coords,
+                     vertAtID(mesh, vert3, indecies).coords)) {
+          isEar = false;
           break;
         }
       }
-      free(tmpPoly.verticies);
-      if (ear) {
-        result[resultUsed++] = verID;
-        result[resultUsed++] = (verID + 1) % mesh.vertexCount;
-        result[resultUsed++] = (verID + 2) % mesh.vertexCount;
+      if (isEar) {
 
-        memmove(&mesh.verticies[(verID + 1) % mesh.vertexCount],
-                &mesh.verticies[(verID + 2) % mesh.vertexCount],
-                mesh.vertexCount - (verID + 2) % mesh.vertexCount);
-        mesh.vertexCount--;
+        // add to EBO
+        EBO[EBO_used++] = indecies[vert1];
+        EBO[EBO_used++] = indecies[vert2];
+        EBO[EBO_used++] = indecies[vert3];
+
+        // remove middle vertex from indecies
+        if (vert2 + 1 < indecies_used) {
+          memmove(&indecies[vert2], &indecies[vert2 + 1],
+                  (indecies_used - (vert2 + 1)) * sizeof(uint32_t));
+        }
+
+        indecies_used--;
         break;
       }
     }
   }
-  result[resultUsed++] = mesh.verticies[0];
-  result[resultUsed++] = mesh.verticies[1];
-  result[resultUsed++] = mesh.verticies[2];
+  EBO[EBO_used++] = indecies[0];
+  EBO[EBO_used++] = indecies[1];
+  EBO[EBO_used++] = indecies[2];
+  free(indecies);
+  return EBO;
 }

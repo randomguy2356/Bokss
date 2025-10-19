@@ -1,27 +1,31 @@
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define PI 3.14159265358979323846
 
-typedef struct {
-  float x;
-  float y;
+typedef union {
+  struct {
+    float x, y;
+  };
+  float arr[2];
 } Vec2;
 
 Vec2 newVec2(float x, float y);
 
-typedef struct {
-  float x;
-  float y;
-  float z;
+typedef union {
+  struct {
+    float x, y, z;
+  };
+  float arr[3];
 } Vec3;
 
 Vec3 newVec3(float x, float y, float z);
 
 typedef struct {
-  Vec2 coords;
+  Vec3 coords;
   Vec3 colors;
 } Vertex;
 
@@ -72,10 +76,10 @@ typedef struct {
   size_t colisionCount;
 } Collisions;
 
-bool inPolygon(Vec2 pos, Polygon polygon);
+bool inPolygon(Vec3 pos, Polygon polygon);
 
 Collisions checkCollisions(size_t objectID, Scene scene);
 
 void update(Scene scene);
 
-size_t *triangulateMesh(Polygon mesh);
+uint32_t *triangulateMesh(Polygon mesh);
