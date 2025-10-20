@@ -18,7 +18,7 @@ CC_WINDOWS ?= x86_64-w64-mingw32-gcc   # requires mingw-w64
 # ---- Flags ----
 CFLAGS_COMMON := -Iinclude -Wall -Wextra -std=c23
 CFLAGS_LINUX  ?= -O0 -g
-CFLAGS_WIN    ?= -O2 -g -DWIN32 -D_WINDOWS
+CFLAGS_WIN    ?= -O2 -g -DWIN32 -D_WINDOWS -mwindows
 
 LDLIBS_LINUX := -lGL -lglfw -lm
 LDLIBS_WIN   := -lopengl32 -lglfw3 -lgdi32
@@ -48,7 +48,7 @@ $(OBJDIR_LINUX)/%.o: src/%.c
 $(OBJDIR_LINUX)/$(PROJECT)$(LINUX_SUFFIX).zip: $(OBJDIR_LINUX)/$(PROJECT)
 	@echo "Zipping Linux build..."
 	cd $(OBJDIR_LINUX) && \
-	zip -r "$(PROJECT)$(LINUX_SUFFIX)_linux.zip" "$(PROJECT)" ../../shaders
+	zip -r "$(PROJECT)$(LINUX_SUFFIX)_linux.zip" "$(PROJECT)" ../../shaders/
 	@mv $(OBJDIR_LINUX)/"$(PROJECT)$(LINUX_SUFFIX)_linux.zip" $@
 
 # ---- Windows build ----
@@ -64,7 +64,7 @@ $(OBJDIR_WINDOWS)/%.o: src/%.c
 $(OBJDIR_WINDOWS)/$(PROJECT)$(WIN_SUFFIX).zip: $(OBJDIR_WINDOWS)/$(PROJECT).exe
 	@echo "Zipping Windows build..."
 	cd $(OBJDIR_WINDOWS) && \
-	zip -r "$(PROJECT)$(WIN_SUFFIX)_windows.zip" "$(PROJECT).exe" ../../shaders
+	zip -r "$(PROJECT)$(WIN_SUFFIX)_windows.zip" "$(PROJECT).exe" ../../shaders/
 	@mv $(OBJDIR_WINDOWS)/"$(PROJECT)$(WIN_SUFFIX)_windows.zip" $@
 
 # ---- Run (Linux) ----
