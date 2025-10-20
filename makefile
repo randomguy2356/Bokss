@@ -18,7 +18,7 @@ CC_WINDOWS ?= x86_64-w64-mingw32-gcc   # requires mingw-w64
 # ---- Flags ----
 CFLAGS_COMMON := -Iinclude -Wall -Wextra -std=c23
 CFLAGS_LINUX  ?= -O0 -g
-CFLAGS_WIN    ?= -O2 -g -DWIN32 -D_WINDOWS -mwindows
+CFLAGS_WIN    ?= -O2 -g -DWIN32 -D_WINDOWS -Wl,-subsystem,windows -Wl,-e,mainCRTStartup
 
 LDLIBS_LINUX := -lGL -lglfw -lm
 LDLIBS_WIN   := -lopengl32 -lglfw3 -lgdi32
