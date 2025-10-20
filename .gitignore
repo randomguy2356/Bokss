@@ -1,0 +1,19 @@
+# Ignore build artifacts
+build/
+
+# Compiled binaries
+*.exe
+*.out
+*.o
+*.obj
+
+# Dependency and cache files
+*.d
+*.log
+
+# Editor/OS clutter
+.DS_Store
+Thumbs.db
+*.swp
+
+makefile-old
